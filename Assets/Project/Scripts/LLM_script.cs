@@ -9,8 +9,21 @@ public class LLM_script : MonoBehaviour
     [SerializeField]
     LLMCharacter llm;
 
+    public enum GenerateOptions
+    {
+        GenerateWords,
+        GenerateSentences
+    }
+
+    [SerializeField]
+    GenerateOptions generateOptions;
+
+    [SerializeField]
+    string startInput;
+
     async void Start()
     {
+
         Tree_script treeScript = GetComponent<Tree_script>();
 
         Debug.Log("Generating tree...");
@@ -19,20 +32,20 @@ public class LLM_script : MonoBehaviour
         Debug.Log("Formatting tree...");
         Debug.Log("Tree without words:\n" + treeScript.FormatTree(tree, 0));
 
-        await PopulateTreeAsync(tree, "You");
+        await PopulateTreeAsync(tree, startInput);
         Debug.Log("Formatting tree...");
         Debug.Log("Final tree:\n" + treeScript.FormatTree(tree, 0));
     }
 
-    async Task PopulateTreeAsync(List<object> tree, string startWord)
+    async Task PopulateTreeAsync(List<object> tree, string startInput)
     {
         Debug.Log("Populating tree...");
 
         tree.RemoveAt(0);
 
-        await PopulateChildTreeAsync(tree, startWord);
+        await PopulateChildTreeAsync(tree, startInput);
 
-        tree.Insert(0, startWord);
+        tree.Insert(0, startInput);
     }
     async Task PopulateChildTreeAsync(List<object> tree, string sentence)
     {
@@ -45,13 +58,26 @@ public class LLM_script : MonoBehaviour
             }
             else
             {
+                string nextContent = "";
 
-                string nextWord = await GenerateWordAsync(sentence);
-                string nextWordLowerCase = nextWord.ToLowerInvariant();
+                if(generateOptions == GenerateOptions.GenerateWords)
+                {
+                    nextContent = await GenerateWordAsync(sentence);
+                    nextContent = nextContent.ToLowerInvariant();
 
-                tree[i] = nextWordLowerCase;
+                }
+                else if (generateOptions  == GenerateOptions.GenerateSentences)
+                {
+                    nextContent = await GenerateSentenceAsync(sentence);
+                }
+                else
+                {
+                    Debug.LogError("No option picked for generating content.");
+                }
 
-                sentence = $"{sentence} {nextWordLowerCase}".Trim();
+                tree[i] = nextContent;
+
+                sentence = $"{sentence} {nextContent}".Trim();
 
             }
 
@@ -60,7 +86,18 @@ public class LLM_script : MonoBehaviour
 
     async Task<string> GenerateWordAsync(string sentence)
     {
-        string prompt = $"Forget the previous prompt. Generate a word. The generated word should continue the sentence: '{sentence}'. Your answer should only be the generated word.";
+        string prompt = $"Forget the previous prompt. Generate a word. The generated word should " +
+            $"continue the sentence: '{sentence}'. Your answer should only be the generated word.";
+        string reply = await llm.Chat(prompt);
+        Debug.Log("Prompt: " + prompt);
+        Debug.Log("Generated word: " + reply);
+        return reply;
+    }
+
+    async Task<string> GenerateSentenceAsync(string sentence)
+    {
+        string prompt = $"Forget the previous prompt and your previous answers. Generate a sentence at most 5 words long. The generated sentence should " +
+            $"continue the story based on this start and nothing else: '{sentence}'. Your answer should only be your newly generated sentence.";
         string reply = await llm.Chat(prompt);
         Debug.Log("Prompt: " + prompt);
         Debug.Log("Generated word: " + reply);
